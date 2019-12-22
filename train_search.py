@@ -41,7 +41,9 @@ parser.add_argument('--arch_lr', type=float, default=3e-4, help='learning rate f
 parser.add_argument('--arch_wd', type=float, default=1e-3, help='weight decay for arch encoding')
 args = parser.parse_args()
 
-utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
+args.data = os.path.expanduser(args.data)
+os.makedirs(args.data, exist_ok=True)
+args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -114,12 +116,12 @@ def main():
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batchsz,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-        pin_memory=True, num_workers=2)
+        pin_memory=True, num_workers=0)
 
     valid_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batchsz,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:]),
-        pin_memory=True, num_workers=2)
+        pin_memory=True, num_workers=0)
 
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
                     optimizer, float(args.epochs), eta_min=args.lr_min)
