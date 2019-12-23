@@ -41,11 +41,10 @@ parser.add_argument('--arch_lr', type=float, default=3e-4, help='learning rate f
 parser.add_argument('--arch_wd', type=float, default=1e-3, help='weight decay for arch encoding')
 args = parser.parse_args()
 
-args.exp_path = os.path.expanduser(args.exp_path)
-os.makedirs(args.exp_path, exist_ok=True)
 args.data = os.path.expanduser(args.data)
+os.makedirs(args.data, exist_ok=True)
+args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
 
-utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
