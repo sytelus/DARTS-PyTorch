@@ -8,6 +8,7 @@ import  torch.nn as nn
 from    torch import optim
 import  torchvision.datasets as dset
 import  torch.backends.cudnn as cudnn
+import pathlib
 
 from    model_search import Network
 from    arch import Arch
@@ -17,13 +18,13 @@ from    arch import Arch
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--data', type=str, default='~/torchvision_data_dir', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='~/dataroot', help='location of the data corpus')
 parser.add_argument('--batchsz', type=int, default=64, help='batch size')
 parser.add_argument('--lr', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--lr_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--wd', type=float, default=3e-4, help='weight decay')
-parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
+parser.add_argument('--report_freq', type=float, default=1000, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
 parser.add_argument('--init_ch', type=int, default=16, help='num of init channels')
@@ -32,19 +33,24 @@ parser.add_argument('--model_path', type=str, default='saved_models', help='path
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_len', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--exp_path', type=str, default='~/logdir/pd/search', help='experiment name')
-parser.add_argument('--seed', type=int, default=2, help='random seed')
+parser.add_argument('--exp_path', type=str, default='~/logdir', help='experiment name')
+parser.add_argument('--seed', type=float, default=2.0, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping range')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training/val splitting')
-parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_lr', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_wd', type=float, default=1e-3, help='weight decay for arch encoding')
 args = parser.parse_args()
 
 args.data = os.path.expanduser(args.data)
 os.makedirs(args.data, exist_ok=True)
+
+pt_output_dir = os.environ.get('PT_OUTPUT_DIR', '')
+if pt_output_dir:
+    args.exp_path = pt_output_dir
+args.exp_path = os.path.join(os.path.expanduser(args.exp_path), 'darts_pytorch_orig_search')
 args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
 
+args.seed = int(args.seed)
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -92,11 +98,10 @@ def main():
     # print('reuse mem now ...')
     # ================================================
 
-    args.unrolled = True
-
 
     logging.info('GPU device = %d' % args.gpu)
     logging.info("args = %s", args)
+    logging.info(f"seed = {args.seed}")
 
 
     criterion = nn.CrossEntropyLoss().to(device)
@@ -129,6 +134,8 @@ def main():
 
     arch = Arch(model, args)
 
+    lines = [f'epoch\ttrain_acc\tval_acc']
+    genotype = ''
     for epoch in range(args.epochs):
 
         scheduler.step()
@@ -149,7 +156,12 @@ def main():
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
         logging.info('valid acc: %f', valid_acc)
 
+        lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
+
         utils.save(model, os.path.join(args.exp_path, 'search.pt'))
+
+    pathlib.Path(os.path.join(args.exp_path, 'search.tsv')).write_text('\n'.join(lines))
+    pathlib.Path(os.path.join(args.exp_path, 'genotype.txt')).write_text(str(genotype))
 
 
 def train(train_queue, valid_queue, model, arch, criterion, optimizer, lr):
@@ -181,7 +193,7 @@ def train(train_queue, valid_queue, model, arch, criterion, optimizer, lr):
         x_search, target_search = x_search.to(device), target_search.cuda(non_blocking=True)
 
         # 1. update alpha
-        arch.step(x, target, x_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        arch.step(x, target, x_search, target_search, lr, optimizer, unrolled=True)
 
         logits = model(x)
         loss = criterion(logits, target)
@@ -197,7 +209,7 @@ def train(train_queue, valid_queue, model, arch, criterion, optimizer, lr):
         top1.update(prec1.item(), batchsz)
         top5.update(prec5.item(), batchsz)
 
-        if step % args.report_freq == 0:
+        if (step+1) % args.report_freq == 0:
             logging.info('Step:%03d loss:%f acc1:%f acc5:%f', step, losses.avg, top1.avg, top5.avg)
 
     return top1.avg, losses.avg
@@ -231,7 +243,7 @@ def infer(valid_queue, model, criterion):
             top1.update(prec1.item(), batchsz)
             top5.update(prec5.item(), batchsz)
 
-            if step % args.report_freq == 0:
+            if (step+1) % args.report_freq == 0:
                 logging.info('>> Validation: %3d %e %f %f', step, losses.avg, top1.avg, top5.avg)
 
     return top1.avg, losses.avg

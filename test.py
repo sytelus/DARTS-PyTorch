@@ -12,9 +12,9 @@ import  torch.backends.cudnn as cudnn
 from    model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar10")
-parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--batchsz', type=int, default=36, help='batch size')
-parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
+parser.add_argument('--data', type=str, default='~/dataroot', help='location of the data corpus')
+parser.add_argument('--batchsz', type=int, default=96, help='batch size')
+parser.add_argument('--report_freq', type=float, default=10000, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--init_ch', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
@@ -26,6 +26,15 @@ parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='DARTS', help='which architecture to use')
 args = parser.parse_args()
+
+args.data = os.path.expanduser(args.data)
+os.makedirs(args.data, exist_ok=True)
+
+pt_output_dir = os.environ.get('PT_OUTPUT_DIR', '')
+if pt_output_dir:
+    args.exp_path = pt_output_dir
+args.exp_path = os.path.join(os.path.expanduser(args.exp_path), 'darts_pytorch_orig_test')
+args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,

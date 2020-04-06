@@ -9,14 +9,16 @@ import  logging
 import  argparse
 import  torch.nn as nn
 import  genotypes
+from  genotypes import Genotype
 import  torch.utils
 import  torchvision.datasets as dset
 import  torch.backends.cudnn as cudnn
+import pathlib
 
 from    model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar10")
-parser.add_argument('--data', type=str, default='~/torchvision_data_dir', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='~/dataroot', help='location of the data corpus')
 parser.add_argument('--batchsz', type=int, default=96, help='batch size')
 parser.add_argument('--lr', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -32,14 +34,24 @@ parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight 
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
-parser.add_argument('--exp_path', type=str, default='~/logdir/pd/eval_train', help='experiment name')
-parser.add_argument('--seed', type=int, default=0, help='random seed')
+parser.add_argument('--exp_path', type=str, default='~/logdir', help='experiment name')
+parser.add_argument('--seed', type=float, default=0.0, help='random seed')
 parser.add_argument('--arch', type=str, default='DARTS', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
+args.data = os.path.expanduser(args.data)
+os.makedirs(args.data, exist_ok=True)
+
+pt_output_dir = os.environ.get('PT_OUTPUT_DIR', '')
+if pt_output_dir:
+    args.exp_path = pt_output_dir
+geno_path = os.path.join(os.path.expanduser(args.exp_path), 'darts_pytorch_orig_search', 'genotype.txt')
+args.exp_path = os.path.join(os.path.expanduser(args.exp_path), 'darts_pytorch_orig_eval')
+args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
+
 args.save = args.exp_path
-args.save = utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+args.seed = int(args.seed)
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -61,9 +73,16 @@ def main():
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
-    genotype = eval("genotypes.%s" % args.arch)
+
+    if not args.arch:
+        geno_s = pathlib.Path(geno_path).read_text()
+    else:
+        geno_s = "genotypes.%s" % args.arch
+    genotype = eval(geno_s)
     model = Network(args.init_ch, 10, args.layers, args.auxiliary, genotype).cuda()
 
+    logging.info(f"seed = {args.seed}")
+    logging.info(f"geno_s = {geno_s}")
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     criterion = nn.CrossEntropyLoss().cuda()
@@ -86,6 +105,7 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
+    lines = [f'epoch\ttrain_acc\tval_acc']
     for epoch in range(args.epochs):
         scheduler.step()
         logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
@@ -97,12 +117,12 @@ def main():
         train_acc, train_obj = train(train_queue, model, criterion, optimizer)
         logging.info('train_acc: %f', train_acc)
 
-
-
-
+        lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
 
         utils.save(model, os.path.join(args.save, 'trained.pt'))
         print('saved to: trained.pt')
+
+    pathlib.Path(os.path.join(args.exp_path, 'eval.tsv')).write_text('\n'.join(lines))
 
 
 def train(train_queue, model, criterion, optimizer):
