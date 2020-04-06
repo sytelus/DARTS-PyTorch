@@ -50,6 +50,10 @@ class MixedLayer(nn.Module):
         :param weights: alpha,[op_num:8], the output = sum of alpha * op(x)
         :return:
         """
+        # res = []
+        # for w, layer in zip(weights, self.layers):
+        #     r = w * layer(x)
+        #     res.append(r)
         res = [w * layer(x) for w, layer in zip(weights, self.layers)]
         # element-wise add by torch.add
         res = sum(res)
@@ -253,10 +257,10 @@ class Network(nn.Module):
         :param x:
         :return:
         """
-        # print('in:', x.shape)
+        print('in:', x.shape)
         # s0 & s1 means the last cells' output
         s0 = s1 = self.stem(x) # [b, 3, 32, 32] => [b, 48, 32, 32]
-        # print('stem:', s0.shape)
+        print('stem:', s0.shape)
 
         for i, cell in enumerate(self.cells):
             # weights are shared across all reduction cell or normal cell
@@ -268,12 +272,12 @@ class Network(nn.Module):
                 weights = F.softmax(self.alpha_normal, dim=-1) # [14, 8]
             # execute cell() firstly and then assign s0=s1, s1=result
             s0, s1 = s1, cell(s0, s1, weights) # [40, 64, 32, 32]
-            # print('cell:',i, s1.shape, cell.reduction, cell.reduction_prev)
+            print('cell:',i, s1.shape, cell.reduction, cell.reduction_prev)
             # print('\n')
 
         # s1 is the last cell's output
         out = self.global_pooling(s1)
-        # print('pool', out.shape)
+        print('pool', out.shape)
         logits = self.classifier(out.view(out.size(0), -1))
 
         return logits

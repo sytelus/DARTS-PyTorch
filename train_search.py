@@ -17,13 +17,13 @@ from    arch import Arch
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='~/torchvision_data_dir', help='location of the data corpus')
 parser.add_argument('--batchsz', type=int, default=64, help='batch size')
 parser.add_argument('--lr', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--lr_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--wd', type=float, default=3e-4, help='weight decay')
-parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
+parser.add_argument('--report_freq', type=float, default=1, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
 parser.add_argument('--init_ch', type=int, default=16, help='num of init channels')
@@ -32,7 +32,7 @@ parser.add_argument('--model_path', type=str, default='saved_models', help='path
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_len', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--exp_path', type=str, default='search', help='experiment name')
+parser.add_argument('--exp_path', type=str, default='~/logdir/pd/search', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping range')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training/val splitting')
@@ -41,8 +41,10 @@ parser.add_argument('--arch_lr', type=float, default=3e-4, help='learning rate f
 parser.add_argument('--arch_wd', type=float, default=1e-3, help='weight decay for arch encoding')
 args = parser.parse_args()
 
-args.exp_path += str(args.gpu)
-utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
+args.data = os.path.expanduser(args.data)
+os.makedirs(args.data, exist_ok=True)
+args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
+
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -115,12 +117,12 @@ def main():
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batchsz,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-        pin_memory=True, num_workers=2)
+        pin_memory=True, num_workers=0)
 
     valid_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batchsz,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:]),
-        pin_memory=True, num_workers=2)
+        pin_memory=True, num_workers=0)
 
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
                     optimizer, float(args.epochs), eta_min=args.lr_min)
