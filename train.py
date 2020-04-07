@@ -119,7 +119,7 @@ def main():
         logging.info('train_acc: %f', train_acc)
 
         lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
-        timebudget.report(reset=True)
+        timebudget.report()
 
     utils.save(model, os.path.join(args.save, 'trained.pt'))
     print('saved to: trained.pt')
