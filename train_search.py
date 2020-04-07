@@ -10,11 +10,10 @@ import  torchvision.datasets as dset
 import  torch.backends.cudnn as cudnn
 import pathlib
 
+from timebudget import timebudget
+
 from    model_search import Network
 from    arch import Arch
-
-
-
 
 
 parser = argparse.ArgumentParser("cifar")
@@ -60,10 +59,8 @@ fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
 
-
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 device = torch.device('cuda:0')
-
 
 
 def main():
@@ -158,12 +155,14 @@ def main():
 
         lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
 
-        utils.save(model, os.path.join(args.exp_path, 'search.pt'))
+        timebudget.report()
 
+    utils.save(model, os.path.join(args.exp_path, 'search.pt'))
     pathlib.Path(os.path.join(args.exp_path, 'search.tsv')).write_text('\n'.join(lines))
     pathlib.Path(os.path.join(args.exp_path, 'genotype.txt')).write_text(str(genotype))
 
 
+@timebudget
 def train(train_queue, valid_queue, model, arch, criterion, optimizer, lr):
     """
 
@@ -214,7 +213,7 @@ def train(train_queue, valid_queue, model, arch, criterion, optimizer, lr):
 
     return top1.avg, losses.avg
 
-
+@timebudget
 def infer(valid_queue, model, criterion):
     """
 
