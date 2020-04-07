@@ -155,7 +155,7 @@ def main():
 
         lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
 
-        timebudget.report()
+    timebudget.report()
 
     utils.save(model, os.path.join(args.exp_path, 'search.pt'))
     pathlib.Path(os.path.join(args.exp_path, 'search.tsv')).write_text('\n'.join(lines))

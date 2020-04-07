@@ -119,8 +119,8 @@ def main():
         logging.info('train_acc: %f', train_acc)
 
         lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
-        timebudget.report()
 
+    timebudget.report()
     utils.save(model, os.path.join(args.save, 'trained.pt'))
     print('saved to: trained.pt')
     pathlib.Path(os.path.join(args.exp_path, 'eval.tsv')).write_text('\n'.join(lines))
