@@ -257,10 +257,10 @@ class Network(nn.Module):
         :param x:
         :return:
         """
-        print('in:', x.shape)
+        #print('in:', x.shape)
         # s0 & s1 means the last cells' output
         s0 = s1 = self.stem(x) # [b, 3, 32, 32] => [b, 48, 32, 32]
-        print('stem:', s0.shape)
+        #print('stem:', s0.shape)
 
         for i, cell in enumerate(self.cells):
             # weights are shared across all reduction cell or normal cell
@@ -277,7 +277,7 @@ class Network(nn.Module):
 
         # s1 is the last cell's output
         out = self.global_pooling(s1)
-        print('pool', out.shape)
+        #print('pool', out.shape)
         logits = self.classifier(out.view(out.size(0), -1))
 
         return logits
