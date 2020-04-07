@@ -272,7 +272,7 @@ class Network(nn.Module):
                 weights = F.softmax(self.alpha_normal, dim=-1) # [14, 8]
             # execute cell() firstly and then assign s0=s1, s1=result
             s0, s1 = s1, cell(s0, s1, weights) # [40, 64, 32, 32]
-            print('cell:',i, s1.shape, cell.reduction, cell.reduction_prev)
+            #print('cell:',i, s1.shape, cell.reduction, cell.reduction_prev)
             # print('\n')
 
         # s1 is the last cell's output
