@@ -14,6 +14,7 @@ import  torch.utils
 import  torchvision.datasets as dset
 import  torch.backends.cudnn as cudnn
 import pathlib
+from timebudget import timebudget
 
 from    model import NetworkCIFAR as Network
 
@@ -23,7 +24,7 @@ parser.add_argument('--batchsz', type=int, default=96, help='batch size')
 parser.add_argument('--lr', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--wd', type=float, default=3e-4, help='weight decay')
-parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
+parser.add_argument('--report_freq', type=float, default=10000, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=600, help='num of training epochs')
 parser.add_argument('--init_ch', type=int, default=36, help='num of init channels')
@@ -118,13 +119,13 @@ def main():
         logging.info('train_acc: %f', train_acc)
 
         lines.append(f'{epoch}\t{train_acc}\t{valid_acc}')
+        timebudget.report(reset=True)
 
-        utils.save(model, os.path.join(args.save, 'trained.pt'))
-        print('saved to: trained.pt')
-
+    utils.save(model, os.path.join(args.save, 'trained.pt'))
+    print('saved to: trained.pt')
     pathlib.Path(os.path.join(args.exp_path, 'eval.tsv')).write_text('\n'.join(lines))
 
-
+@timebudget
 def train(train_queue, model, criterion, optimizer):
 
     objs = utils.AverageMeter()
@@ -152,12 +153,12 @@ def train(train_queue, model, criterion, optimizer):
         top1.update(prec1.item(), n)
         top5.update(prec5.item(), n)
 
-        if step % args.report_freq == 0:
+        if (step+1) % args.report_freq == 0:
             logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
 
-
+@timebudget
 def infer(valid_queue, model, criterion):
 
     objs = utils.AverageMeter()
@@ -179,7 +180,7 @@ def infer(valid_queue, model, criterion):
             top1.update(prec1.item(), n)
             top5.update(prec5.item(), n)
 
-        if step % args.report_freq == 0:
+        if (step+1) % args.report_freq == 0:
             logging.info('>>Validation: %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
