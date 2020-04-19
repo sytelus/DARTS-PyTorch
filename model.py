@@ -2,7 +2,12 @@ import  torch
 import  torch.nn as nn
 from    operations import *
 from    utils import drop_path
+import numpy as np
 
+def param_size(module:nn.Module):
+    """count all parameters excluding auxiliary"""
+    return np.sum(v.numel() for name, v in module.named_parameters() \
+        if "auxiliary" not in name)
 
 class Cell(nn.Module):
 
@@ -33,6 +38,11 @@ class Cell(nn.Module):
             op_names, indices = zip(*genotype.normal)
             concat = genotype.normal_concat
         self._compile(C, op_names, indices, concat, reduction)
+
+        # print(param_size(self.preprocess0))
+        # print(param_size(self.preprocess1))
+        # print(param_size(self._ops))
+        # print('--------')
 
     def _compile(self, C, op_names, indices, concat, reduction):
         """
@@ -85,6 +95,9 @@ class Cell(nn.Module):
 
             s = h1 + h2
             states += [s]
+
+
+
         return torch.cat([states[i] for i in self._concat], dim=1)
 
 
@@ -168,21 +181,34 @@ class NetworkCIFAR(nn.Module):
             if i == 2 * layers // 3:
                 C_to_auxiliary = C_prev
 
+        # for i,cell in enumerate(self.cells):
+        #     print(i, np.sum(v.numel() for name, v in cell.named_parameters()))
+
         if auxiliary:
             self.auxiliary_head = AuxiliaryHeadCIFAR(C_to_auxiliary, num_classes)
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(C_prev, num_classes)
 
     def forward(self, input):
+        #print(torch.cuda.memory_allocated()/1.0e6)
+
         logits_aux = None
         s0 = s1 = self.stem(input)
+        #print(-1, s0.shape, s1.shape, torch.cuda.memory_allocated()/1.0e6)
+
         for i, cell in enumerate(self.cells):
             s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
+            #print(i, s0.shape, s1.shape, torch.cuda.memory_allocated()/1.0e6)
+
             if i == 2 * self._layers // 3:
                 if self._auxiliary and self.training:
                     logits_aux = self.auxiliary_head(s1)
+                    #print(i, 'aux', logits_aux.shape)
         out = self.global_pooling(s1)
         logits = self.classifier(out.view(out.size(0), -1))
+
+        #print(-1, 'out', out.shape)
+        #print(-1, 'logits', logits.shape)
         return logits, logits_aux
 
 
@@ -243,11 +269,17 @@ class NetworkImageNet(nn.Module):
         logits_aux = None
         s0 = self.stem0(input)
         s1 = self.stem1(s0)
+        #print(-1, s0.shape, s1.shape)
         for i, cell in enumerate(self.cells):
             s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
+            #print(i, s0.shape, s1.shape)
+
             if i == 2 * self._layers // 3:
                 if self._auxiliary and self.training:
                     logits_aux = self.auxiliary_head(s1)
+                    #print(i, 'aux', logits_aux.shape)
         out = self.global_pooling(s1)
         logits = self.classifier(out.view(out.size(0), -1))
+        #print('out', out.shape)
+        #print('logits', logits.shape)
         return logits, logits_aux

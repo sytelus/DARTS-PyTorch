@@ -29,9 +29,8 @@ parser.add_argument('--epochs', type=int, default=50, help='num of training epoc
 parser.add_argument('--init_ch', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
-parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
+parser.add_argument('--cutout', action='store_true', default=False, help='use cutout') # in search cutout is not used
 parser.add_argument('--cutout_len', type=int, default=16, help='cutout length')
-parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
 parser.add_argument('--exp_path', type=str, default='~/logdir', help='experiment name')
 parser.add_argument('--seed', type=float, default=2.0, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping range')
