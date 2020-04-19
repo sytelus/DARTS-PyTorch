@@ -65,7 +65,7 @@ def main():
     _, test_transform = utils._data_transforms_cifar10(args)
     test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
     test_queue = torch.utils.data.DataLoader(
-        test_data, batch_size=args.batchsz, shuffle=False, pin_memory=True, num_workers=2)
+        test_data, batch_size=args.batchsz, shuffle=False, pin_memory=True, num_workers=0 if 'pydevd' in sys.modules else 2)
 
     model.drop_path_prob = args.drop_path_prob
     test_acc, test_obj = infer(test_queue, model, criterion)

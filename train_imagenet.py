@@ -19,7 +19,7 @@ from torch.autograd import Variable
 from model import NetworkImageNet as Network
 
 parser = argparse.ArgumentParser("imagenet")
-parser.add_argument('--data', type=str, default='../data/imagenet/', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='~/dataroot', help='location of the data corpus')
 parser.add_argument('--batch_size', type=int, default=128, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -29,11 +29,11 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=250, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=48, help='num of init channels')
 parser.add_argument('--layers', type=int, default=14, help='total number of layers')
-parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
+parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower')
 parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight for auxiliary loss')
 parser.add_argument('--drop_path_prob', type=float, default=0, help='drop path probability')
-parser.add_argument('--save', type=str, default='EXP', help='experiment name')
-parser.add_argument('--seed', type=int, default=0, help='random seed')
+parser.add_argument('--exp_path', type=str, default='EXP', help='experiment name')
+parser.add_argument('--seed', type=float, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='DARTS', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5., help='gradient clipping')
 parser.add_argument('--label_smooth', type=float, default=0.1, help='label smoothing')
@@ -42,13 +42,22 @@ parser.add_argument('--decay_period', type=int, default=1, help='epochs between 
 parser.add_argument('--parallel', action='store_true', default=False, help='data parallelism')
 args = parser.parse_args()
 
-args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+args.data = os.path.expanduser(args.data)
+os.makedirs(args.data, exist_ok=True)
+
+pt_output_dir = os.environ.get('PT_OUTPUT_DIR', '')
+if pt_output_dir:
+    args.exp_path = pt_output_dir
+geno_path = os.path.join(os.path.expanduser(args.exp_path), 'darts_pytorch_imagenet_orig_search', 'genotype.txt')
+args.exp_path = os.path.join(os.path.expanduser(args.exp_path), 'darts_pytorch_imagenet_orig_eval')
+args.exp_path = utils.create_exp_dir(args.exp_path, scripts_to_save=glob.glob('*.py'))
+
+args.seed = int(args.seed)
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format=log_format, datefmt='%m/%d %I:%M:%S %p')
-fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
+fh = logging.FileHandler(os.path.join(args.exp_path, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
@@ -107,8 +116,8 @@ def main():
         weight_decay=args.weight_decay
     )
 
-    traindir = os.path.join(args.data, 'train')
-    validdir = os.path.join(args.data, 'val')
+    traindir = os.path.join(args.data, 'ImageNet', 'train')
+    validdir = os.path.join(args.data, 'ImageNet', 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     train_data = dset.ImageFolder(
         traindir,
@@ -133,10 +142,10 @@ def main():
         ]))
 
     train_queue = torch.utils.data.DataLoader(
-        train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
+        train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0 if 'pydevd' in sys.modules else 4)
 
     valid_queue = torch.utils.data.DataLoader(
-        valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=4)
+        valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=0 if 'pydevd' in sys.modules else 4)
 
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
 
@@ -163,20 +172,18 @@ def main():
             'state_dict': model.state_dict(),
             'best_acc_top1': best_acc_top1,
             'optimizer': optimizer.state_dict(),
-        }, is_best, args.save)
+        }, is_best, args.exp_path)
 
 
 def train(train_queue, model, criterion, optimizer):
-    objs = utils.AvgrageMeter()
-    top1 = utils.AvgrageMeter()
-    top5 = utils.AvgrageMeter()
+    objs = utils.AverageMeter()
+    top1 = utils.AverageMeter()
+    top5 = utils.AverageMeter()
     model.train()
 
     for step, (input, target) in enumerate(train_queue):
-        target = target.cuda(async=True)
+        target = target.cuda(non_blocking=True)
         input = input.cuda()
-        input = Variable(input)
-        target = Variable(target)
 
         optimizer.zero_grad()
         logits, logits_aux = model(input)
@@ -202,14 +209,14 @@ def train(train_queue, model, criterion, optimizer):
 
 
 def infer(valid_queue, model, criterion):
-    objs = utils.AvgrageMeter()
-    top1 = utils.AvgrageMeter()
-    top5 = utils.AvgrageMeter()
+    objs = utils.AverageMeter()
+    top1 = utils.AverageMeter()
+    top5 = utils.AverageMeter()
     model.eval()
 
     for step, (input, target) in enumerate(valid_queue):
-        input = Variable(input, volatile=True).cuda()
-        target = Variable(target, volatile=True).cuda(async=True)
+        input = input.cuda()
+        target = target.cuda(non_blocking=True)
 
         logits, _ = model(input)
         loss = criterion(logits, target)

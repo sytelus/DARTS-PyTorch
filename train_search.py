@@ -62,7 +62,6 @@ logging.getLogger().addHandler(fh)
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 device = torch.device('cuda:0')
 
-
 def main():
     np.random.seed(args.seed)
     cudnn.benchmark = True
@@ -119,12 +118,12 @@ def main():
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batchsz,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-        pin_memory=True, num_workers=0)
+        pin_memory=True, num_workers=0 if 'pydevd' in sys.modules else 4)
 
     valid_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batchsz,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:]),
-        pin_memory=True, num_workers=0)
+        pin_memory=True, num_workers=0 if 'pydevd' in sys.modules else 4)
 
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
                     optimizer, float(args.epochs), eta_min=args.lr_min)

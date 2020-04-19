@@ -74,7 +74,7 @@ def main():
         ]))
 
     valid_queue = torch.utils.data.DataLoader(
-        valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=4)
+        valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=0 if 'pydevd' in sys.modules else 4)
 
     model.drop_path_prob = args.drop_path_prob
     valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)

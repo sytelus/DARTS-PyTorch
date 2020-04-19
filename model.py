@@ -18,7 +18,7 @@ class Cell(nn.Module):
         """
         super(Cell, self).__init__()
 
-        print(C_prev_prev, C_prev, C)
+        #print(C_prev_prev, C_prev, C)
 
         if reduction_prev:
             self.preprocess0 = FactorizedReduce(C_prev_prev, C)
